@@ -1,0 +1,138 @@
+/* calendar.css */
+
+/* Main calendar container */
+.react-calendar {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    font-family: 'Roboto', sans-serif;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Style for the calendar tiles */
+  .react-calendar__tile {
+    padding: 15px;
+    border-radius: 10px;
+    position: relative; /* So appointment details can be placed on top */
+    transition: background-color 0.3s ease, transform 0.3s ease;
+  }
+  
+  .react-calendar__tile:hover {
+    background-color: #f0f4f8;
+    transform: scale(1.05);
+    cursor: pointer;
+  }
+  
+  /* Style for tiles with active selections */
+  .react-calendar__tile--active {
+    background-color: #1d4ed8;
+    color: white;
+    font-weight: bold;
+  }
+  
+  /* Highlight days with appointments */
+  .react-calendar__tile--hasAppointment {
+    background-color: #4caf50;
+    color: white;
+    font-weight: bold;
+  }
+  
+  /* Appointment details inside the calendar tile */
+  .react-calendar__tile--hasAppointment::after {
+    content: attr(data-appointment);
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    right: 5px;
+    font-size: 0.9rem;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 2px;
+    border-radius: 5px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  
+  /* Navigation button styles */
+  .react-calendar__navigation button {
+    background-color: #1d4ed8;
+    color: white;
+    padding: 8px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .react-calendar__navigation button:hover {
+    background-color: #4c8bf5;
+  }
+  
+  .react-calendar__navigation button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+  
+  /* Weekends in red */
+  .react-calendar__month-view__days__day--weekend {
+    color: #e53e3e;
+  }
+  
+  /* Today’s date with a blue background */
+  .react-calendar__month-view__days__day--today {
+    background-color: #3182ce;
+    color: white;
+    font-weight: bold;
+  }
+  
+  /* Appointment form styling */
+  .appointment-form {
+    background: #f4f7fb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .appointment-form input,
+  .appointment-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 10px;
+  }
+  
+  .appointment-form button {
+    padding: 12px 20px;
+    background-color: #4caf50;
+    color: white;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .appointment-form button:hover {
+    background-color: #45a049;
+  }
+  
+  /* Appointments list styling */
+  .appointment-item {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #e3f2fd;
+    border-radius: 5px;
+  }
+  
+  .appointment-item p {
+    font-weight: bold;
+  }
+  
+  .appointment-item .appointment-description {
+    font-size: 0.9rem;
+    color: #555;
+  }
+  
