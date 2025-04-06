@@ -1,0 +1,80 @@
+/* my-prescription.css */
+
+.my-prescription-page {
+  width: 80%;
+  max-width: 900px;
+  margin: 0 auto;
+  font-family: 'Roboto', sans-serif;
+  padding-top: 30px;
+}
+
+.prescription-form {
+  background: #f4f7fb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.prescription-form input,
+.prescription-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.prescription-form input[type="file"] {
+  padding: 8px;
+  background-color: #fff;
+}
+
+.prescription-form button {
+  padding: 12px 20px;
+  background-color: #4caf50;
+  color: white;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-weight: 500;
+}
+
+.prescription-form button:hover {
+  background-color: #45a049;
+}
+
+.prescription-list {
+  margin-top: 30px;
+}
+
+.prescription-item {
+  padding: 15px;
+  background-color: #e3f2fd;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  border-left: 5px solid #4caf50;
+}
+
+.prescription-item h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.prescription-item p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.prescription-item .file-info a {
+  color: #3182ce;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.prescription-item .file-info a:hover {
+  text-decoration: underline;
+}
