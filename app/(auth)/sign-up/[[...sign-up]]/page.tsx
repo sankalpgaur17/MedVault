@@ -215,6 +215,13 @@ const SignUpPage = () => {
         >
           {loading ? "Signing Up..." : "Sign Up with Email"}
         </button>
+
+        <p className="text-center mt-4">
+          Already have an account?{" "}
+          <a href="/sign-in" className="text-blue-500 hover:underline">
+            Sign In
+          </a>
+        </p>
       </div>
     </main>
   );

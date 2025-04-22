@@ -1,132 +1,245 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
-import "./calendar.css"; // Ensure the CSS path is correct
+import React, { useState, useEffect } from 'react';
+import './calendar.css';
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    isSameDay,
+    getMonth,
+    getYear,
+    subMonths,
+    addMonths,
+} from 'date-fns';
+
+import { db } from '@/lib/firebase';
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 interface Appointment {
-  id: string;
-  date: Date;
-  time: string;
-  description: string;
+    id: string;
+    date: Date;
+    time: string;
+    doctor: string;
+    speciality: string;
 }
 
+const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 const AppointmentPage = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [appointmentDescription, setAppointmentDescription] = useState("");
-  const [appointmentTime, setAppointmentTime] = useState("");
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const [isPopupOpen, setIsPopupOpen] = useState(false);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [doctor, setDoctor] = useState('');
+    const [speciality, setSpeciality] = useState('');
+    const [appointmentTime, setAppointmentTime] = useState('');
+    const [view, setView] = useState<'month' | 'week'>('month');
 
-  // Function to handle date selection
-  const handleDateChange = (value: Date | Date[] | null) => {
-    if (!value) return; // Ensure value is not null
-    const selected = Array.isArray(value) ? value[0] : value; // For range selection, pick the first date
-    setSelectedDate(selected);
-    setAppointmentDescription(""); // Reset description and time when new date is selected
-    setAppointmentTime("");
-  };
+    const year = getYear(currentDate);
+    const month = getMonth(currentDate);
+    const firstDayOfMonth = startOfMonth(currentDate);
 
-  // Function to handle adding an appointment
-  const handleAddAppointment = () => {
-    if (selectedDate && appointmentDescription && appointmentTime) {
-      const newAppointment: Appointment = {
-        id: Date.now().toString(),
-        date: selectedDate,
-        time: appointmentTime,
-        description: appointmentDescription,
-      };
-      setAppointments((prevAppointments) => [...prevAppointments, newAppointment]);
-      setSelectedDate(null); // Reset selected date after adding appointment
-      setAppointmentDescription(""); // Reset description
-      setAppointmentTime(""); // Reset time
-    } else {
-      alert("Please fill in all the fields.");
-    }
-  };
+    // Get current user UID
+    const user = getAuth().currentUser;
+    const userId = user ? user.uid : null;
 
-  // Function to check if an appointment exists for a given date
-  const hasAppointment = (date: Date) => {
-    return appointments.some(
-      (appointment) => appointment.date.toDateString() === date.toDateString()
-    );
-  };
+    useEffect(() => {
+        const fetchAppointments = async () => {
+            if (!userId) return; // If user is not logged in, don't fetch
 
-  // Function to get appointment details for a specific date
-  const getAppointmentDetails = (date: Date) => {
-    const appointment = appointments.find(
-      (appointment) => appointment.date.toDateString() === date.toDateString()
-    );
-    return appointment ? `${appointment.time} - ${appointment.description}` : "";
-  };
+            const appointmentsRef = collection(db, 'appointments');
+            const q = query(appointmentsRef, where('userId', '==', userId));
 
-  return (
-    <div className="appointment-page p-6">
-      <h1 className="text-3xl font-bold text-center mb-6">Manage Your Appointments</h1>
+            const querySnapshot = await getDocs(q);
+            const loadedAppointments: Appointment[] = [];
 
-      {/* Calendar component */}
-      <div className="calendar-container mb-6 flex justify-center">
-        <Calendar
-          onChange={handleDateChange}
-          value={selectedDate || new Date()}
-          tileClassName={({ date }) => (hasAppointment(date) ? "react-calendar__tile--hasAppointment" : "")}
-          tileContent={({ date }) => {
-            const appointmentDetails = getAppointmentDetails(date);
-            return appointmentDetails ? (
-              <div className="appointment-details text-xs text-white bg-black bg-opacity-50 p-1 rounded-md mt-1">
-                {appointmentDetails}
-              </div>
-            ) : null;
-          }}
-        />
-      </div>
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                loadedAppointments.push({
+                    id: doc.id,
+                    date: new Date(data.date),
+                    time: data.time,
+                    doctor: data.doctor,
+                    speciality: data.speciality,
+                });
+            });
 
-      {/* Add Appointment Form */}
-      {selectedDate && (
-        <div className="appointment-form p-6 bg-gray-100 rounded-lg shadow-md max-w-lg mx-auto">
-          <h3 className="text-xl font-semibold mb-4">Schedule Appointment</h3>
-          <label htmlFor="time" className="block font-medium">Time:</label>
-          <input
-            type="time"
-            id="time"
-            className="border border-gray-300 rounded-md p-2 w-full mt-1"
-            value={appointmentTime}
-            onChange={(e) => setAppointmentTime(e.target.value)}
-          />
-          <label htmlFor="description" className="block font-medium mt-4">Description:</label>
-          <textarea
-            id="description"
-            className="border border-gray-300 rounded-md p-2 w-full mt-1"
-            value={appointmentDescription}
-            onChange={(e) => setAppointmentDescription(e.target.value)}
-          />
-          <button
-            onClick={handleAddAppointment}
-            className="mt-4 w-full p-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-          >
-            Add Appointment
-          </button>
+            setAppointments(loadedAppointments);
+        };
+
+        fetchAppointments();
+    }, [userId]);
+
+    const prevMonth = () => {
+        setCurrentDate(subMonths(currentDate, 1));
+    };
+
+    const nextMonth = () => {
+        setCurrentDate(addMonths(currentDate, 1));
+    };
+
+    const today = () => {
+        setCurrentDate(new Date());
+    };
+
+    const handleDayClick = (day: Date) => {
+        setSelectedDate(day);
+        setIsPopupOpen(true);
+        setDoctor('');
+        setSpeciality('');
+        setAppointmentTime('');
+    };
+
+    const closePopup = () => {
+        setIsPopupOpen(false);
+    };
+
+    const handleAddAppointment = async () => {
+        if (!userId) {
+            alert('You must be logged in to add an appointment.');
+            return;
+        }
+
+        if (selectedDate && doctor && speciality && appointmentTime) {
+            const newAppointment: Appointment = {
+                id: Date.now().toString(),
+                date: selectedDate,
+                time: appointmentTime,
+                doctor,
+                speciality,
+            };
+
+            // Store the appointment under the user's UID
+            await addDoc(collection(db, 'appointments'), {
+                userId: userId, // Store UID with appointment
+                date: selectedDate.toISOString(),
+                time: appointmentTime,
+                doctor,
+                speciality,
+            });
+
+            // Update the state with the new appointment
+            setAppointments((prev) => [...prev, newAppointment]);
+
+            closePopup();
+        } else {
+            alert('Please fill in all the fields.');
+        }
+    };
+
+    const hasAppointment = (date: Date) => {
+        return appointments.some((appt) => isSameDay(appt.date, date));
+    };
+
+    const getAppointmentsForDate = (date: Date) => {
+        return appointments.filter((appt) => isSameDay(appt.date, date));
+    };
+
+    const renderDays = () => {
+        const calendarDays = [];
+        const firstDay = startOfMonth(currentDate);
+        const firstDayOfMonthWeekday = firstDay.getDay();
+
+        let dayCounter = 1 - firstDayOfMonthWeekday;
+
+        for (let i = 0; i < 35; i++) {
+            const currentDateForDay = new Date(year, month, dayCounter);
+            const isCurrentMonth =
+                currentDateForDay.getMonth() === month &&
+                currentDateForDay.getFullYear() === year;
+            const dateAppointments = isCurrentMonth ? getAppointmentsForDate(currentDateForDay) : [];
+            const hasAppt = dateAppointments.length > 0;
+            const isToday = isCurrentMonth && isSameDay(currentDateForDay, new Date());
+            const isSelected = isCurrentMonth && selectedDate && isSameDay(currentDateForDay, selectedDate);
+
+            calendarDays.push(
+                <div
+                    key={`day-${currentDateForDay.getTime()}`}
+                    className={`day ${hasAppt ? 'has-appointment' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${!isCurrentMonth ? 'dull' : ''}`}
+                    onClick={() => isCurrentMonth && handleDayClick(currentDateForDay)}
+                >
+                    <div className="day-number">{currentDateForDay.getDate()}</div>
+                    {hasAppt && (
+                        <div className="appointment-details">
+                            {dateAppointments.map((appt, index) => (
+                                <div key={appt.id} className="appointment-brief">
+                                    <span className="appointment-time">{appt.time}</span>
+                                    <span className="appointment-doctor">{appt.doctor}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+            dayCounter++;
+        }
+
+        return calendarDays;
+    };
+
+    return (
+        <div className={`custom-appointments-container ${isPopupOpen ? 'dimmed' : ''}`}>
+            <h1 className="custom-appointments-title">Appointments</h1>
+            <div className="custom-calendar-container">
+                <div className="custom-calendar-header">
+                    <h2>{format(currentDate, 'MMMM yyyy')}</h2>
+                    <div className="custom-calendar-actions">
+                        <button onClick={() => setView('week')} className={`view-button ${view === 'week' ? 'active' : ''}`}>Week</button>
+                        <button onClick={() => setView('month')} className={`view-button ${view === 'month' ? 'active' : ''}`}>Month</button>
+                        <button onClick={today} className="today-button">Today</button>
+                        <div className="navigation">
+                            <button onClick={prevMonth}>&lt;</button>
+                            <button onClick={nextMonth}>&gt;</button>
+                        </div>
+                    </div>
+                </div>
+                <div className="custom-calendar-weekdays">
+                    {daysOfWeek.map(day => (
+                        <div key={day} className="weekday">{day}</div>
+                    ))}
+                </div>
+                <div className="custom-calendar-days">
+                    {renderDays()}
+                </div>
+
+                {isPopupOpen && (
+                    <div className="appointment-popup-overlay">
+                        <div className="appointment-popup">
+                            <div className="appointment-popup-content">
+                                <input
+                                    type="text"
+                                    placeholder="Doctor Name"
+                                    value={doctor}
+                                    onChange={(e) => setDoctor(e.target.value)}
+                                    className="popup-input"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Doctor Speciality"
+                                    value={speciality}
+                                    onChange={(e) => setSpeciality(e.target.value)}
+                                    className="popup-input"
+                                />
+                                <input
+                                    type="time"
+                                    placeholder="Appointment Time"
+                                    value={appointmentTime}
+                                    onChange={(e) => setAppointmentTime(e.target.value)}
+                                    className="popup-input"
+                                />
+                                <button className="save-button" onClick={handleAddAppointment}>
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-      )}
-
-      {/* Appointments List */}
-      <div className="mt-6 max-w-lg mx-auto">
-        <h2 className="text-xl font-semibold mb-4">Your Appointments</h2>
-        {appointments.length > 0 ? (
-          <div className="appointments-list">
-            {appointments.map((appointment) => (
-              <div key={appointment.id} className="appointment-item mb-4 p-4 bg-blue-50 rounded-lg shadow-md">
-                <p className="font-semibold">{appointment.time} - {appointment.description}</p>
-                <p className="text-sm text-gray-500">{appointment.date.toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-gray-500">No appointments scheduled yet.</p>
-        )}
-      </div>
-    </div>
-  );
+    );
 };
 
 export default AppointmentPage;

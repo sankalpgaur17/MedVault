@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { auth } from "@/lib/firebase";  // Firebase authentication
+import { auth, db } from "@/lib/firebase";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 interface SidebarProps {
   selectedOption: string;
@@ -12,22 +13,40 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("Guest");
   const [showMenu, setShowMenu] = useState(false);
 
   // Firebase auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        fetchUserProfile(currentUser.uid);
+      }
     });
-
-    // Load profile image from localStorage
-    const savedImage = localStorage.getItem("profileImage");
-    if (savedImage) setProfileImage(savedImage);
 
     return () => unsubscribe();
   }, []);
 
-  // Handle image upload
+  // Fetch user profile data from Firestore using exact field names from your database
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, "profiles", userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        // Use the exact field names from your Firestore database
+        if (data.profileImage) {
+          setProfileImage(data.profileImage);
+        }
+        if (data.name) {
+          setUserName(data.name);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+    }
+  };
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -35,7 +54,6 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
       reader.onloadend = () => {
         const base64Image = reader.result as string;
         setProfileImage(base64Image);
-        localStorage.setItem("profileImage", base64Image);
         setShowMenu(false);
       };
       reader.readAsDataURL(file);
@@ -44,7 +62,6 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
 
   const resetToDefault = () => {
     setProfileImage(null);
-    localStorage.removeItem("profileImage");
     setShowMenu(false);
   };
 
@@ -64,7 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
     { name: "My Medicines", icon: "💊" },
     { name: "My Prescriptions", icon: "📝" },
     { name: "Lab Tests", icon: "🔬" },
-    { name: "My Bills", icon: "💸" },
+    { name: "Bills", icon: "💸" },
     { name: "Insurance", icon: "🛡️" },
   ];
 
@@ -108,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedOption, setSelectedOption }) 
 
         {/* User Info */}
         <div>
-          <p className="text-lg font-semibold">{user?.displayName || "Guest"}</p>
+          <p className="text-lg font-semibold">{userName}</p>
           <p className="text-sm opacity-70">{user ? "Patient" : "Not Signed In"}</p>
         </div>
       </div>

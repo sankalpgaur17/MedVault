@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
@@ -17,17 +17,36 @@ const SignInPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [otp, setOtp] = useState("");
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const router = useRouter();
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  useEffect(() => {
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+        callback: (response: any) => {
+          console.log("reCAPTCHA solved");
+        },
+        "expired-callback": () => {
+          console.warn("reCAPTCHA expired");
+        },
+      });
+
+      // Explicitly render to avoid edge cases
+      recaptchaVerifierRef.current.render().catch(console.error);
+    }
+  }, []);
 
   const handleSignIn = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/profile"); // ✅ This was working
+      router.push("/profile");
     } catch (error) {
-      console.error("Error signing in:", error);
+      console.error("Email Sign-In Error:", error);
       setError("Invalid email or password");
     }
   };
@@ -45,10 +64,9 @@ const SignInPage = () => {
 
   const handlePhoneSignIn = async () => {
     try {
-      const recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-      });
-      const confirmation = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
+      if (!recaptchaVerifierRef.current) throw new Error("RecaptchaVerifier not ready");
+
+      const confirmation = await signInWithPhoneNumber(auth, phone, recaptchaVerifierRef.current);
       setConfirmationResult(confirmation);
     } catch (error) {
       console.error("Phone Sign-In Error:", error);
@@ -74,7 +92,7 @@ const SignInPage = () => {
         src="/bg.jpg"
         alt="bg-image"
         fill
-        className="absolute inset-0 z-0 object-cover" // ✅ updated from objectFit warning
+        className="absolute inset-0 z-0 object-cover"
       />
       <div className="w-full max-w-md mr-12 bg-white p-8 rounded-lg shadow-lg z-10">
         <h2 className="text-2xl font-bold mb-4">Sign In</h2>

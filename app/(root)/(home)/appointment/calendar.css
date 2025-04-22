@@ -1,146 +1,272 @@
-/* Main calendar container */
-.react-calendar {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  font-family: 'Poppins', sans-serif;
-  font-size: 1rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  background: white;
-  padding: 20px;
-}
+/* custom-calendar.css */
 
-/* Calendar tiles (days) */
-.react-calendar__tile {
+.custom-appointments-container {
   padding: 15px;
-  border-radius: 8px;
-  transition: all 0.3s ease-in-out;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f4f7f9;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: background-color 0.3s ease;
+}
+
+.custom-appointments-container.dimmed {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.custom-appointments-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #37474f;
+  margin-bottom: 18px;
   text-align: center;
-  font-weight: 500;
 }
 
-.react-calendar__tile:hover {
-  background-color: #f1f5f9;
-  transform: scale(1.05);
+.custom-calendar-container {
+  background-color: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  padding: 15px;
+  width: 100%;
+  max-width: none;
+  margin-left: 60px;
+  margin-right: 60px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.custom-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  background-color: #2196F3;
+  color: white;
+  padding: 10px 15px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.custom-calendar-header h2 {
+  font-size: 25px;
+  font-weight: bold;
+  background-color: #2196F3;
+  margin: 0;
+}
+
+.custom-calendar-actions {
+  display: flex;
+  align-items: center;
+}
+
+.custom-calendar-actions .view-button,
+.custom-calendar-actions .today-button {
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 12px;
   cursor: pointer;
+  color: #37474f;
+  transition: background-color 0.2s ease;
+  margin-left: 4px;
 }
 
-/* Selected date styling */
-.react-calendar__tile--active {
+.custom-calendar-actions .view-button.active {
+  background-color: #4db6ac;
+  color: white;
+}
+
+.custom-calendar-actions .today-button {
   background-color: #4caf50;
   color: white;
-  font-weight: bold;
-  border-radius: 8px;
 }
 
-/* Highlight days with appointments */
-.react-calendar__tile--hasAppointment {
-  background-color: #ff9800;
+.custom-calendar-actions .view-button:hover,
+.custom-calendar-actions .today-button:hover {
+  background-color: #c2c2c2;
+}
+
+.custom-calendar-header .navigation {
+  display: flex;
+  margin-left: 8px;
+}
+
+.custom-calendar-header .navigation button {
+  background: none;
+  border: none;
+  font-size: 1.0em;
+  cursor: pointer;
   color: white;
+  padding: 4px 6px;
+  margin: 0 2px;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-calendar-header .navigation button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.custom-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  color: #78909c;
+  font-size: 14px;
+  margin-bottom: 1px; /* Reduced margin */
+  padding: 0 8px;
+}
+
+.custom-calendar-weekdays .weekday {
+  text-align: left;
+  padding: 4px 8px;
+}
+
+.custom-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px; /* Standard thin gap */
+  padding: 1px 1.2px; /* Minimal padding for grid lines */
+  background-color: lightblue; /* Light blue grid lines */
+}
+
+.custom-calendar-days .day {
+  cursor: pointer;
+  color: #455a64;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  height: 125px;
+  padding: 8px;
+  background-color: #fff;
+}
+
+.custom-calendar-days .day:hover {
+  background-color: #f0f0f0; /* Basic hover feedback */
+}
+
+.custom-calendar-days .day.empty {
+  background: none;
+  cursor: default;
+}
+
+.custom-calendar-days .day.today {
+  background-color: #e0f2f1;
+  color: #26a69a;
   font-weight: bold;
 }
 
-/* Appointment details inside the calendar tile */
-.react-calendar__tile--hasAppointment::after {
-  content: attr(data-appointment);
-  font-size: 0.8rem;
-  color: white;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 3px;
-  border-radius: 5px;
-  position: absolute;
-  bottom: 5px;
-  left: 5px;
-  right: 5px;
+.custom-calendar-days .day.selected {
+  background-color: #bbdefb;
+  color: #1976d2;
+  font-weight: bold;
+}
+
+.custom-calendar-days .day.dull {
+  color: #9e9e9e;
+  background-color: #f0f0f0;
+  cursor: default;
+}
+
+.custom-calendar-days .day.dull:hover {
+  background-color: #f0f0f0;
+}
+
+.day-number {
+  font-size: 14px;
+  font-weight: normal;
+  margin-bottom: 5px;
+}
+
+.appointment-details {
+  width: 100%;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.appointment-brief {
+  background-color: #E3F2FD;
+  border-left: 3px solid #2196F3;
+  padding: 2px 4px;
+  margin-bottom: 3px;
+  border-radius: 2px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Navigation buttons styling */
-.react-calendar__navigation button {
-  background-color: #1d4ed8;
-  color: white;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: 1rem;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.react-calendar__navigation button:hover {
-  background-color: #3b82f6;
-}
-
-.react-calendar__navigation button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-/* Weekend and today's date styling */
-.react-calendar__month-view__days__day--weekend {
-  color: #e53935;
-}
-
-.react-calendar__month-view__days__day--today {
-  background-color: #1e88e5;
-  color: white;
+.appointment-time {
   font-weight: bold;
+  color: #1565C0;
 }
 
-/* Appointment form styling */
-.appointment-form {
-  background: #f8fafc;
-  border-radius: 8px;
+.appointment-doctor {
+  color: #546E7A;
+}
+
+/* Appointment popup overlay */
+.appointment-popup-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+/* Appointment popup */
+.appointment-popup {
+  background-color: white;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.appointment-form input,
-.appointment-form textarea {
+.appointment-popup-content {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  margin-top: 8px;
-  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.appointment-form button {
-  padding: 12px 16px;
-  background-color: #4caf50;
-  color: white;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  margin-top: 12px;
-  transition: background-color 0.3s ease;
-}
-
-.appointment-form button:hover {
-  background-color: #43a047;
-}
-
-/* Appointments list styling */
-.appointments-list {
-  background: #f1f5f9;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.appointment-item {
+.popup-input {
+  width: 100%;
   padding: 12px;
-  background: #ffffff;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 8px;
-  transition: transform 0.3s ease;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
 }
 
-.appointment-item:hover {
-  transform: scale(1.02);
+.save-button {
+  background-color: #00897B;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 10px;
+  width: 100px;
+  text-align: center;
+}
+
+.save-button:hover {
+  background-color: #00796B;
 }

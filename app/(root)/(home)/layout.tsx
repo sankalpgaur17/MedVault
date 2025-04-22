@@ -8,6 +8,7 @@ import Profile from "./profile/page";
 import Appointment from "./appointment/page";
 import MyPrescriptions from "./myprescription/page";
 import MyMedicines from "./mymedicine/page";
+import Bills from "./bills/page"; // ✅ Import the Bills page
 
 const HomeLayout = ({ children }: { children: ReactNode }) => {
   const [selectedOption, setSelectedOption] = useState("Dashboard");
@@ -28,8 +29,10 @@ const HomeLayout = ({ children }: { children: ReactNode }) => {
             <MyPrescriptions />
           ) : selectedOption === "My Medicines" ? (
             <MyMedicines />
+          ) : selectedOption === "Bills" ? ( // ✅ Add Bills menu option
+            <Bills />
           ) : (
-            <div>Invalid Option Selected</div> // Handle invalid options explicitly
+            <div>Invalid Option Selected</div>
           )}
         </section>
       </div>
