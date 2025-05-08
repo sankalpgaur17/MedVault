@@ -1,8 +1,10 @@
 "use client";
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
+import { detachAllFirestoreListeners } from "@/lib/firestoreListeners";
 
 interface AuthContextType {
   user: User | null;
@@ -39,9 +41,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await auth.signOut();
-    setUser(null);
-    router.push("/sign-in");
+    try {
+      // First detach all Firestore listeners to prevent permission errors
+      detachAllFirestoreListeners();
+      
+      // Then sign out the user
+      await auth.signOut();
+      setUser(null);
+      router.push("/sign-in");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still attempt to navigate away even if there was an error
+      router.push("/sign-in");
+    }
   };
 
   return (

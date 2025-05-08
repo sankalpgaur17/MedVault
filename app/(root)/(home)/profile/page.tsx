@@ -76,7 +76,7 @@ const Profile = () => {
         height,
         bloodGroup,
         profileImage: imageURL || imagePreview || "",
-        userId: user?.uid || "",
+        uid: user?.uid || "", // Changed from userId to uid
         email: user?.email || "",
         createdAt: new Date().toISOString(),
       };
