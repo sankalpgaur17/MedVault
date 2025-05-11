@@ -1,80 +1,128 @@
-/* my-prescription.css */
-
-.my-prescription-page {
-  width: 80%;
-  max-width: 900px;
-  margin: 0 auto;
-  font-family: 'Roboto', sans-serif;
-  padding-top: 30px;
+/* General Page Container (if not using Tailwind for this) */
+.mypres-page-container {
+  width: 100%; /* Full width within its parent */
+  /* max-width: 1200px; /* Or your desired max width */
+  /* margin: 0 auto; */ /* Centering if max-width is set */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  /* padding: 20px; Replaced with Tailwind p-8 etc. */
 }
 
-.prescription-form {
-  background: #f4f7fb;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.prescription-form input,
-.prescription-form textarea {
+/* Input field styling (complementing Tailwind or standalone) */
+.mypres-input {
+  display: block;
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  margin-bottom: 10px;
-  font-size: 14px;
+  padding: 0.75rem 1rem; /* 12px 16px */
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.25rem; /* 20px */
+  color: #374151; /* gray-700 */
+  background-color: #f9fafb; /* gray-50 */
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: 0.5rem; /* 8px - rounded-lg */
+  box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
-.prescription-form input[type="file"] {
-  padding: 8px;
-  background-color: #fff;
+.mypres-input:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-color: #14b8a6; /* teal-500 */
+  box-shadow: 0 0 0 0.2rem rgba(20, 184, 166, 0.25); /* teal-500 with alpha */
 }
 
-.prescription-form button {
-  padding: 12px 20px;
-  background-color: #4caf50;
+/* Primary Button Styling (Teal/Green) */
+.mypres-button-primary {
+  background-color: #14b8a6; /* teal-500 */
   color: white;
-  border-radius: 5px;
+  font-weight: 600; /* semibold */
+  padding: 0.75rem 1.5rem; /* py-3 px-6 */
+  border-radius: 0.5rem; /* rounded-lg */
   border: none;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  font-weight: 500;
+  transition: background-color 0.2s ease-in-out;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-.prescription-form button:hover {
-  background-color: #45a049;
+.mypres-button-primary:hover {
+  background-color: #0d9488; /* teal-600 */
 }
 
-.prescription-list {
-  margin-top: 30px;
+.mypres-button-primary:disabled {
+  background-color: #9ca3af; /* gray-400 */
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
-.prescription-item {
-  padding: 15px;
-  background-color: #e3f2fd;
-  border-radius: 5px;
-  margin-bottom: 15px;
-  border-left: 5px solid #4caf50;
+/* Secondary Button Styling (e.g., "Add to Medications") */
+.mypres-button-secondary {
+  background-color: #e0f2f1; /* teal-50 or a light teal */
+  color: #0d9488; /* teal-600 */
+  font-weight: 500; /* medium */
+  padding: 0.625rem 1.25rem; /* py-2.5 px-5 */
+  border-radius: 0.375rem; /* rounded-md */
+  border: 1px solid #5eead4; /* teal-300 */
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
-.prescription-item h4 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
+.mypres-button-secondary:hover {
+  background-color: #ccedea; /* Slightly darker light teal */
+  border-color: #14b8a6; /* teal-500 */
 }
 
-.prescription-item p {
-  margin: 4px 0;
-  font-size: 14px;
-  color: #333;
+
+/* Extracted Info Card Styling */
+.mypres-card {
+  /* Tailwind classes are doing most of the work here like bg-white, shadow-lg, rounded-xl, p-5 */
+  /* You can add specific card styles here if needed */
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
-.prescription-item .file-info a {
-  color: #3182ce;
-  text-decoration: none;
-  font-weight: 500;
+.mypres-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-xl */
 }
 
-.prescription-item .file-info a:hover {
-  text-decoration: underline;
+/* Custom scrollbar for medicine list inside cards (optional) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #a0aec0; /* gray-400 */
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #718096; /* gray-500 */
+}
+
+
+/* Adjusting the main heading from the image (if it's part of this component) */
+.my-prescription-page > h1 { /* Your old h1 class from TSX was "text-2xl font-semibold mb-4" */
+  font-size: 2.25rem; /* text-4xl or as per image */
+  font-weight: 700; /* font-bold */
+  color: #1f2937; /* gray-800 */
+  margin-bottom: 0.5rem; /* mb-2 */
+  /* text-align: center; /* If you want it centered */
+}
+
+/* Sub-header or introductory text */
+.page-intro-text {
+  font-size: 1rem; /* text-base */
+  color: #4b5563; /* gray-600 */
+  margin-bottom: 2rem; /* mb-8 */
+  /* text-align: center; /* If you want it centered */
+}
+
+
+/* Legacy classes cleanup - you might want to remove or refactor these from your original mypres.css */
+/*
+.prescription-form { ... }
+.prescription-form input,
+.prescription-form textarea { ... }
+.prescription-form button { ... }
+.prescription-list { ... }
+.prescription-item { ... }
+*/
