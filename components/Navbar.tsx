@@ -19,7 +19,6 @@ const navOptions = [
   { name: "My Prescriptions" },
   { name: "Lab Test" }, // Changed from "Lab Tests" to "Lab Test"
   { name: "Bills" },
-  { name: "Insurance" },
 ];
 
 const Navbar = ({ selectedOption, setSelectedOption }: NavbarProps) => {
@@ -74,7 +73,7 @@ const Navbar = ({ selectedOption, setSelectedOption }: NavbarProps) => {
 
   return (
     <div className="w-full">
-      <nav className="flex items-center justify-between px-8 py-4 bg-emerald-800 text-white shadow-lg">
+      <nav className="flex items-center justify-between px-8 py-4 bg-teal-600 text-white shadow-lg">
         {/* Logo Section */}
         <div className="flex items-center space-x-4">
           <div className="w-10 h-10">
@@ -135,7 +134,7 @@ const Navbar = ({ selectedOption, setSelectedOption }: NavbarProps) => {
             onClick={() => setSelectedOption(option.name)}
             className={`px-8 py-4 text-lg font-semibold cursor-pointer whitespace-nowrap ${
               selectedOption === option.name
-                ? 'border-b-2 border-emerald-600 text-emerald-600'
+                ? 'border-b-2 border-teal-600 text-teal-600'
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
           >

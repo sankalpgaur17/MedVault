@@ -204,14 +204,14 @@ const MyPrescriptionPage = () => {
 
 
   // --- (extractMedicinesFromImage - Updated for specific fields and format) ---
-   const extractMedicinesFromImage = async (base64Image: string): Promise<ExtractedMedicine[]> => {
+   const extractMedicinesFromImage = async (base64Image: string): Promise<{ medicines: ExtractedMedicine[], hospitalName?: string }> => {
        // WARNING: Exposing API keys client-side is a security risk.
        // Use environment variables or a backend function.
        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY; // Example for Next.js
         if (!apiKey) {
             console.error("Gemini API key is not set.");
             // Don't alert here, handle it in handleSubmit
-            return [];
+            return { medicines: [] };
         }
 
        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -365,8 +365,17 @@ Ensure to:
                 };
             });
 
+           let extractedHospitalName = '';
+           // Extract hospital name from first medicine entry if available
+           if (parsed.length > 0 && parsed[0].hospitalName) {
+             extractedHospitalName = parsed[0].hospitalName;
+           }
+
            console.log("Processed extracted medicines:", processedMedicines);
-           return processedMedicines;
+           return {
+             medicines: processedMedicines,
+             hospitalName: extractedHospitalName ?? undefined
+           };
 
        } catch (error: any) {
            console.error("Error calling Gemini API or processing response:", error);
@@ -414,7 +423,7 @@ Ensure to:
         try {
           const base64String = (reader.result as string).split(",")[1];
           // 3. Call the AI extraction function
-          medicines = await extractMedicinesFromImage(base64String);
+          const { medicines, hospitalName: extractedHospitalName } = await extractMedicinesFromImage(base64String);
 
           // 4. Convert date string to Timestamp
           // Assuming prescriptionDateString is in "YYYY-MM-DD" format from input type="date"
@@ -432,11 +441,12 @@ Ensure to:
             uid: userUid,
             doctorName: doctorName.trim(), // Save trimmed name
             date: prescriptionTimestamp, // Store as Timestamp
-            hospitalName: hospitalName.trim(), // Save trimmed hospital name
+            hospitalName: extractedHospitalName || hospitalName.trim(), // Use extracted or manual input
             fileURL: fileURL,
             notes: notes.trim(), // Save trimmed notes
             medicines: medicines.map(med => ({
               ...med,
+              hospitalName: extractedHospitalName, // Include hospital name with each medicine
               extractedDate: med.prescribedDate // Store the extracted date separately
             })),
             createdAt: Timestamp.now(), // Timestamp for ordering
@@ -766,4 +776,3 @@ Ensure to:
 };
 
 export default MyPrescriptionPage;
-

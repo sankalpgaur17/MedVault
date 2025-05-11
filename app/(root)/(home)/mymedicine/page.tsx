@@ -13,6 +13,8 @@ interface ExtractedMedicine {
   dosage?: string | null;
   frequency?: string | null;
   duration?: number | string | null; // Duration can be number, string, or null
+  prescribedDate?: string | null;
+  hospitalName?: string | null; // Add hospitalName to interface
 }
 
 // Interface for the data structure fetched for each medication entry
@@ -26,13 +28,35 @@ interface Medicine {
   formDate: Timestamp; // Date from form input (renamed from prescriptionDate)
   extractedDate?: string; // Date from the prescription image
   status: 'active' | 'completed';
+  extractedDetails?: {
+    medicines: ExtractedMedicine[];
+    hospitalName?: string | null;
+  };
 }
 
+// Update the calculateRemainingDays function to handle different date formats
+const calculateRemainingDays = (startDate: Date | string, durationInDays: number): number => {
+  if (!startDate || !durationInDays) return 0;
+
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  if (!isValid(start)) return 0;
+
+  const endDate = new Date(start);
+  endDate.setDate(endDate.getDate() + durationInDays);
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const remaining = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return remaining > 0 ? remaining : 0;
+};
 
 const MyMedicinePage = () => {
   const [currentMedications, setCurrentMedications] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true); // Loading state for fetching medications
   const [user, setUser] = useState<User | null>(null); // Keep track of user state (using User type)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<'all' | 'current' | 'past'>('all');
 
   // Effect to listen for auth state changes
   useEffect(() => {
@@ -144,112 +168,223 @@ const MyMedicinePage = () => {
     return remaining > 0 ? remaining : 0;
   };
 
+  // Filter medications based on search query and active tab
+  const getFilteredMedications = () => {
+    let filtered = currentMedications;
+
+    // First filter by search query
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(med => 
+        med.medicineName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Then filter by tab
+    switch (activeTab) {
+      case 'current':
+        return filtered.filter(med => med.status === 'active');
+      case 'past':
+        return filtered.filter(med => med.status === 'completed');
+      default:
+        return filtered;
+    }
+  };
+
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-2xl font-semibold text-gray-800 mb-6">Medications</h1>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      {/* Updated Header Section to match prescription page */}
+      <header className="mb-6 md:mb-10 border-b border-gray-200 pb-6">
+        <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 leading-tight">Medications</h1>
+        <p className="text-gray-600 mt-2 text-base md:text-lg">
+          Track and manage your ongoing medications. Never miss a dose with smart reminders.
+        </p>
+      </header>
 
-      {/* Authentication Required Message */}
-      {!user && !loading && ( // Show if no user and not currently loading (initial check)
-        <div className="text-center py-16 bg-white rounded-xl shadow-md max-w-2xl mx-auto">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-red-400 mx-auto mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6.364-3.636l-1.414-1.414a9 9 0 1015.556 0L16.364 13.364A7 7 0 0012 15zm0 0a1 1 0 100-2 1 1 0 000 2z" />
-          </svg>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-3">Authentication Required</h2>
-          <p className="text-gray-600 text-lg">Please log in to view your medications.</p>
-          <p className="text-sm text-gray-500 mt-2">Protecting your health data starts with secure access.</p>
-          {/* Add a login button or link here if applicable */}
-          {/* <button className="mt-6 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 ease-in-out shadow-md">
-            Go to Login
-          </button> */}
-        </div>
-      )}
-
-      {loading && user ? ( // Show loading only if user is logged in and data is being fetched
-        <div className="flex justify-center items-center h-64">
-          <p className="text-gray-500 text-lg">Loading medications...</p>
-        </div>
-      ) : user && currentMedications.length > 0 ? ( // Show list if user logged in and has medications
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Responsive Grid */}
-          {currentMedications.map((med) => (
-            <div key={med.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 relative"> {/* Card Styling */}
-              <div className="flex justify-between items-start mb-4">
-                {/* Pill Icon + Medicine Name */}
-                <div className="flex items-start space-x-3">
-                  <Image
-                    src="/pill-icon.svg"
-                    alt="Medicine"
-                    width={24}
-                    height={24}
-                    className="text-emerald-600 mt-1"
-                  />
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {med.medicineName}
-                  </h3>
-                </div>
-
-                {/* Status Badge */}
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  med.status === 'active' 
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {med.status === 'active' ? 'Active' : 'Completed'}
-                </span>
-              </div>
-
-              {/* Days Remaining Box */}
-              {typeof med.duration === 'number' && (
-                <div className="bg-emerald-50 p-2 rounded-md inline-block mb-3">
-                  <p className="text-sm font-medium text-emerald-800">
-                    {calculateDaysRemaining(
-                      med.extractedDate ? new Date(med.extractedDate) : new Date(med.formDate.seconds * 1000),
-                      med.duration
-                    )} days left
-                  </p>
-                </div>
-              )}
-
-              {/* Medicine Details */}
-              <div className="space-y-2">
-                {med.hospitalName && (
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Hospital:</span> {med.hospitalName}
-                  </p>
-                )}
-
-                {med.dosage && (
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Dosage:</span> {med.dosage}
-                  </p>
-                )}
-
-                {med.frequency && (
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Frequency:</span> {med.frequency}
-                  </p>
-                )}
-
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Prescribed:</span> {' '}
-                  {med.extractedDate 
-                    ? format(new Date(med.extractedDate), 'dd MMM yyyy') + ' (from prescription)'
-                    : format(new Date(med.formDate.seconds * 1000), 'dd MMM yyyy') + ' (from form)'}
-                </p>
-
-                {typeof med.duration === 'number' && (
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Duration:</span> {med.duration} days
-                  </p>
-                )}
-              </div>
+      {/* Main Content Container - Updated with new width and margin */}
+      <div className="bg-white rounded-xl shadow-sm p-6 md:p-8 mx-4 md:mx-6">
+        {/* Search and Filter Bar */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {/* Search Bar */}
+            <div className="relative flex-1 max-w-md">
+              <input
+                type="text"
+                placeholder="Search medicines..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              />
+              <svg 
+                className="absolute left-4 top-3.5 h-5 w-5 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
-          ))}
+
+            {/* Filter Tabs */}
+            <div className="flex space-x-2 overflow-x-auto">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'current', label: 'Current' },
+                { id: 'past', label: 'Past' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as 'all' | 'current' | 'past')}
+                  className={`px-6 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap
+                    ${activeTab === tab.id
+                      ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                      : 'text-gray-600 hover:bg-gray-50 border border-transparent'
+                    }`}
+                >
+                  {tab.label}
+                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs
+                    ${activeTab === tab.id
+                      ? 'bg-white border border-teal-200'
+                      : 'bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    {tab.id === 'all' 
+                      ? currentMedications.length
+                      : tab.id === 'current'
+                        ? currentMedications.filter(med => med.status === 'active').length
+                        : currentMedications.filter(med => med.status === 'completed').length
+                    }
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      ) : user && currentMedications.length === 0 && !loading ? ( // Show no medications message if user logged in and list is empty
-        <div className="flex justify-center items-center h-64">
-          <p className="text-gray-500 text-lg">No medications found for this user.</p>
+
+        {/* Medications Grid - Updated padding and gap */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+          {getFilteredMedications().map((med) => {
+            // Get the correct date and duration values
+            const prescriptionDate = med.extractedDate 
+              ? new Date(med.extractedDate)
+              : new Date(med.formDate.seconds * 1000);
+            
+            // Use the duration from the medicine details
+            const duration = typeof med.duration === 'number' 
+              ? med.duration 
+              : typeof med.duration === 'string' 
+                ? parseInt(med.duration) 
+                : 0;
+            
+            // Calculate remaining days
+            const remainingDays = calculateRemainingDays(prescriptionDate, duration);
+            const isCompleted = remainingDays === 0;
+      
+            return (
+              <div key={med.id} className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-300">
+                {/* Medicine Header with Icon and Name */}
+                <div className="p-5 border-b border-gray-100">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">{med.medicineName}</h3>
+                      {med.dosage && (
+                        <p className="text-sm text-gray-600 mt-0.5">{med.dosage}</p>
+                      )}
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium
+                      ${isCompleted 
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-teal-50 text-teal-700'
+                      }`}
+                    >
+                      {isCompleted ? 'Completed' : 'Active'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Medicine Details */}
+                <div className="p-5 space-y-3">
+                  {med.hospitalName && (
+                    <div className="flex items-center text-gray-600">
+                      <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      {med.hospitalName}
+                    </div>
+                  )}
+
+                  <div className="flex items-center text-gray-600">
+                    <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {format(prescriptionDate, 'MMMM d, yyyy')}
+                  </div>
+
+                  {med.frequency && (
+                    <div className="flex items-center text-gray-600">
+                      <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {med.frequency}
+                    </div>
+                  )}
+                </div>
+
+                {/* Days Remaining */}
+                {!isCompleted && remainingDays > 0 && (
+                  <div className="px-5 py-4 bg-white border-t border-gray-100 rounded-b-xl">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Days Remaining</span>
+                      <span className="font-medium text-teal-700">{remainingDays} days</span>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-teal-500 rounded-full" 
+                        style={{ 
+                          width: `${Math.min((remainingDays / duration) * 100, 100)}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-      ) : null /* Don't render anything if user is null and loading is false (handled by auth required message) */}
+
+        {/* No Results Message */}
+        {getFilteredMedications().length === 0 && (
+          <div className="text-center py-10">
+            <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-xl font-medium text-gray-900">
+              {searchQuery
+                ? "No medications found matching your search"
+                : activeTab === 'current'
+                  ? "No current medications"
+                  : activeTab === 'past'
+                    ? "No past medications"
+                    : "No medications found"
+              }
+            </p>
+            <p className="mt-2 text-gray-600">
+              {searchQuery
+                ? "Try adjusting your search terms"
+                : "Your medications will appear here once added"
+              }
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

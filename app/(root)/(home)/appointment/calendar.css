@@ -32,7 +32,7 @@
 .custom-month-year {
   font-size: 20px;
   font-weight: 600;
-  color: #0f766e; /* Matching the teal color in the image */
+  color: #0f766e; /* Teal-700 to match navbar */
 }
 
 /* Navigation buttons (previous/next month) */
@@ -44,7 +44,7 @@
 .custom-navigation button {
   background: none;
   border: none;
-  color: #0f766e;
+  color: #0f766e; /* Teal-700 */
   padding: 4px 8px;
   margin: 0 3px;
   border-radius: 4px;
@@ -56,7 +56,7 @@
 }
 
 .custom-navigation button:hover {
-  background-color: rgba(15, 118, 110, 0.1);
+  background-color: rgba(20, 184, 166, 0.1); /* Teal-500 with opacity */
 }
 
 /* View buttons (Calendar/List) and Today button container */
@@ -85,18 +85,18 @@
 
 /* Active state for view buttons - matching the green button in image */
 .custom-view-actions .view-button.active {
-  background-color: #10b981;
+  background-color: #0f766e; /* Changed from green to teal-700 */
   color: white;
 }
 
 /* Today button specific style */
 .custom-view-actions .today-button {
-  background-color: #e0f2f1;
-  color: #0f766e;
+  background-color: #ccfbf1; /* Teal-100 */
+  color: #0f766e; /* Teal-700 */
 }
 
 .custom-view-actions .today-button:hover {
-  background-color: #b2dfdb;
+  background-color: #99f6e4; /* Teal-200 */
 }
 
 /* Weekday header row */
@@ -155,15 +155,15 @@
 
 /* Styling for today's date */
 .custom-calendar-days .day.today {
-  background-color: #ecfdf5;
-  color: #0f766e;
+  background-color: #f0fdfa; /* Teal-50 */
+  color: #0f766e; /* Teal-700 */
   font-weight: bold;
 }
 
 /* Styling for selected date */
 .custom-calendar-days .day.selected {
-  background-color: #e0f2f1;
-  color: #0f766e;
+  background-color: #ccfbf1; /* Teal-100 */
+  color: #0f766e; /* Teal-700 */
   font-weight: bold;
 }
 
@@ -182,7 +182,7 @@
 
 /* Special treatment for today's day number (green circle) */
 .day.today .day-number {
-  background-color: #10b981;
+  background-color: #0f766e; /* Changed from green to teal-700 */
   color: white;
   border-radius: 50%;
 }
@@ -198,8 +198,8 @@
 
 /* Individual appointment brief styling */
 .appointment-brief {
-  background-color: rgba(16, 185, 129, 0.1); /* Light green matching theme */
-  border-left: 3px solid #10b981;
+  background-color: rgba(15, 118, 110, 0.1); /* Teal-700 with opacity */
+  border-left: 3px solid #0f766e; /* Teal-700 */
   padding: 3px 6px;
   margin-bottom: 4px;
   border-radius: 3px;
@@ -213,13 +213,13 @@
 }
 
 .appointment-brief:hover {
-  background-color: rgba(16, 185, 129, 0.2);
+  background-color: rgba(15, 118, 110, 0.2); /* Teal-700 with more opacity */
 }
 
 /* Appointment time display in brief view */
 .appointment-time {
   font-weight: bold;
-  color: #0f766e;
+  color: #0f766e; /* Teal-700 */
 }
 
 /* Doctor name display in brief view */
@@ -255,7 +255,7 @@
   gap: 12px;
   font-size: 18px;
   font-weight: 600;
-  color: #0f766e;
+  color: #0f766e; /* Teal-700 */
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e2e8f0;
@@ -266,8 +266,8 @@
 }
 
 .appointment-count {
-  background-color: #ecfdf5;
-  color: #0f766e;
+  background-color: #ccfbf1; /* Teal-100 */
+  color: #0f766e; /* Teal-700 */
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.9rem;
@@ -282,7 +282,7 @@
 
 .custom-appointment-item {
   background-color: white;
-  border-left: 4px solid #10b981;
+  border-left: 4px solid #0f766e; /* Teal-700 */
   padding: 16px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -322,7 +322,7 @@
 
 .date {
   font-weight: 600;
-  color: #0f766e;
+  color: #0f766e; /* Teal-700 */
 }
 
 .time {
@@ -342,8 +342,8 @@
 }
 
 .status-badge.bg-emerald-100 {
-  background-color: #ecfdf5;
-  color: #065f46;
+  background-color: #ccfbf1; /* Teal-100 */
+  color: #0f766e; /* Teal-700 */
 }
 
 .status-badge.bg-gray-100 {
