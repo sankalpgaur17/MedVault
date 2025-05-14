@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { useAuth } from "@/context/AuthContext"; // Add this import
+import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 import { db, storage } from "@/lib/firebase";
+import { parseISO, isValid, format } from "date-fns";
 import {
   collection,
   addDoc,
@@ -14,10 +16,10 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getAuth, onAuthStateChanged, Unsubscribe } from "firebase/auth";
-// Make sure this CSS file exists and contains your custom styles
+import { createPrescriptionHash, verifyPrescriptionUniqueness, registerPrescription } from "@/lib/contracts/contract";
 import "./mypres.css";
 
-// --- (Interfaces remain the same or adjusted slightly for clarity) ---
+// Move interfaces to the top
 interface PrescriptionDocData {
   uid: string;
   doctorName: string;
@@ -27,6 +29,7 @@ interface PrescriptionDocData {
   notes: string;
   medicines?: ExtractedMedicine[]; // Use the new interface for medicines
   createdAt: Timestamp;
+  prescribedDate?: string;
 }
 
 interface Prescription extends PrescriptionDocData {
@@ -42,9 +45,8 @@ interface ExtractedMedicine {
   prescribedDate?: string | null; // Add this field for the extracted date
 }
 
-
 const MyPrescriptionPage = () => {
-  const { user } = useAuth(); // Use the proper AuthContext hook
+  const { user } = useAuth() as { user: any }; // Type assertion for AuthContext
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [doctorName, setDoctorName] = useState("");
   const [prescriptionDateString, setPrescriptionDateString] = useState(""); // Input date string
@@ -402,87 +404,110 @@ Ensure to:
       return; // Stop submission if validation fails
     }
 
-    setIsUploading(true); // Start uploading indicator
-    setIsExtracting(true); // Start extraction indicator
-
-    let fileURL = '';
-    let medicines: ExtractedMedicine[] = [];
+    // Remove MetaMask check since we're using server wallet
+    setIsUploading(true);
+    setIsExtracting(true);
 
     try {
-      // 1. Upload the file to Firebase Storage
-      const storageRef = ref(
-        storage,
-        `prescriptions/${userUid}/${Date.now()}-${file.name}`
-      );
-      await uploadBytes(storageRef, file);
-      fileURL = await getDownloadURL(storageRef);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            try {
+                const base64String = (reader.result as string).split(",")[1];
+                // 2. Extract medicine data
+                const { medicines, hospitalName: extractedHospitalName } = await extractMedicinesFromImage(base64String);
 
-      // 2. Read the file as a Data URL for AI extraction
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64String = (reader.result as string).split(",")[1];
-          // 3. Call the AI extraction function
-          const { medicines, hospitalName: extractedHospitalName } = await extractMedicinesFromImage(base64String);
+                // 3. Create prescription data object
+                const prescriptionData = {
+                    doctorName: doctorName.trim(),
+                    date: prescriptionDateString,
+                    medicines: medicines,
+                    hospitalName: extractedHospitalName || hospitalName.trim()
+                };
 
-          // 4. Convert date string to Timestamp
-          // Assuming prescriptionDateString is in "YYYY-MM-DD" format from input type="date"
-          const [year, month, day] = prescriptionDateString.split('-').map(Number);
-          // Note: Month is 0-indexed in JavaScript Date objects
-          const prescriptionDate = new Date(year, month - 1, day);
+                // Pass userId for ownership verification
+                try {
+                    const prescriptionHash = createPrescriptionHash(prescriptionData);
+                    const idToken = await user.getIdToken();
 
-          if (isNaN(prescriptionDate.getTime())) {
-              throw new Error("Invalid date format. Please use YYYY-MM-DD.");
-          }
-          const prescriptionTimestamp = Timestamp.fromDate(prescriptionDate);
+                    const response = await fetch('/api/blockchain/verify', {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                      },
+                      body: JSON.stringify({ 
+                        hash: prescriptionHash
+                      })
+                    });
 
-          // 5. Save data to Firestore
-          await addDoc(collection(db, "prescriptions"), {
-            uid: userUid,
-            doctorName: doctorName.trim(), // Save trimmed name
-            date: prescriptionTimestamp, // Store as Timestamp
-            hospitalName: extractedHospitalName || hospitalName.trim(), // Use extracted or manual input
-            fileURL: fileURL,
-            notes: notes.trim(), // Save trimmed notes
-            medicines: medicines.map(med => ({
-              ...med,
-              hospitalName: extractedHospitalName, // Include hospital name with each medicine
-              extractedDate: med.prescribedDate // Store the extracted date separately
-            })),
-            createdAt: Timestamp.now(), // Timestamp for ordering
-          });
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to verify prescription');
+                    }
 
-          resetForm(); // Clear form on success
-          alert("✅ Prescription uploaded and processed successfully!");
+                    const { exists, message } = await response.json();
+                    if (exists) {
+                      alert(message || "This prescription has already been registered in the system.");
+                      return;
+                    }
 
-        } catch (innerError: any) {
-          console.error("Error during data processing or Firestore write:", innerError);
-           if (innerError.message.includes("Invalid date format")) {
-               alert(`❌ Upload failed: ${innerError.message}`);
-           } else if (innerError.message.includes("Gemini API")) {
-               alert(`❌ AI extraction failed: ${innerError.message}`);
-           }
-           else {
-            alert("❌ An error occurred while processing or saving data. Please try again.");
-           }
-        } finally {
-          setIsUploading(false); // Stop uploading indicator
-          setIsExtracting(false); // Stop extraction indicator
-        }
-      };
-      reader.onerror = (error) => {
-        console.error("Error reading file:", error);
-        alert("❌ Failed to read the uploaded file.");
-        setIsUploading(false);
-        setIsExtracting(false);
-      };
-      reader.readAsDataURL(file); // Start reading the file
+                    // Continue with upload if prescription is unique
+                    const storageRef = ref(storage, `prescriptions/${userUid}/${Date.now()}-${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    const fileURL = await getDownloadURL(storageRef);
+
+                    // Register using server wallet
+                    await registerPrescription(prescriptionHash);
+
+                    // Save hash to prescriptionHashes collection first
+                    await addDoc(collection(db, "prescriptionHashes"), {
+                      hash: prescriptionHash,
+                      createdAt: Timestamp.now(),
+                      userId: userUid // Optional: store who first uploaded it
+                    });
+
+                    // Then save prescription details
+                    await addDoc(collection(db, "prescriptions"), {
+                      uid: userUid,
+                      doctorName: doctorName.trim(),
+                      date: Timestamp.fromDate(new Date(prescriptionDateString)), // Form date as backup
+                      prescribedDate: medicines[0]?.prescribedDate || null, // Store extracted date
+                      hospitalName: extractedHospitalName || hospitalName.trim(),
+                      fileURL: fileURL,
+                      notes: notes.trim(),
+                      medicines: medicines,
+                      prescriptionHash: prescriptionHash,
+                      createdAt: Timestamp.now(),
+                      blockchainVerified: true
+                    });
+
+                    resetForm();
+                    alert("✅ Prescription uploaded and verified successfully!");
+                } catch (error: any) {
+                    alert(error.message);
+                    return;
+                }
+            } catch (error) {
+                console.error("Error processing prescription:", error);
+                alert("❌ Error processing prescription. Please try again.");
+            } finally {
+                setIsUploading(false); // Stop uploading indicator
+                setIsExtracting(false); // Stop extraction indicator
+            }
+        };
+        reader.onerror = (error) => {
+            console.error("Error reading file:", error);
+            alert("❌ Failed to read the uploaded file.");
+            setIsUploading(false);
+            setIsExtracting(false);
+        };
+        reader.readAsDataURL(file); // Start reading the file
 
     } catch (error) {
-      console.error("Upload error:", error);
-      alert("❌ Failed to upload prescription file.");
-      setIsUploading(false);
-      setIsExtracting(false);
+        console.error("Upload error:", error);
+        alert("❌ Failed to upload prescription file.");
+        setIsUploading(false);
+        setIsExtracting(false);
     }
   };
 
@@ -497,6 +522,73 @@ Ensure to:
     if (fileInputRef.current) {
       fileInputRef.current.value = ""; // Reset file input
     }
+  };
+
+  // Add a helper function to calculate remaining days using prescribed date
+  const calculateRemainingDays = (prescription: any): number => {
+    try {
+      // Get the medicine and its prescribed date
+      const firstMedicine = prescription.medicines?.[0];
+      if (!firstMedicine) return 0;
+
+      // Get the prescribed date with priority:
+      // 1. Individual medicine prescribed date
+      // 2. Prescription level prescribed date
+      // 3. Form submission date
+      let startDate: Date | null = null;
+      
+      if (firstMedicine.prescribedDate) {
+        startDate = typeof firstMedicine.prescribedDate === 'string' 
+          ? parseISO(firstMedicine.prescribedDate)
+          : firstMedicine.prescribedDate;
+      } else if (prescription.prescribedDate) {
+        startDate = typeof prescription.prescribedDate === 'string'
+          ? parseISO(prescription.prescribedDate)
+          : prescription.prescribedDate;
+      } else if (prescription.date instanceof Timestamp) {
+        startDate = prescription.date.toDate();
+      }
+
+      if (!startDate || !isValid(startDate)) {
+        console.warn('No valid date found for prescription');
+        return 0;
+      }
+
+      // Get duration from the medicine
+      const duration = typeof firstMedicine.duration === 'number' 
+        ? firstMedicine.duration 
+        : typeof firstMedicine.duration === 'string'
+          ? parseInt(firstMedicine.duration)
+          : 0;
+
+      if (!duration) return 0;
+
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + duration);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const remainingDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return remainingDays > 0 ? remainingDays : 0;
+    } catch (error) {
+      console.error("Error calculating remaining days:", error);
+      return 0;
+    }
+  };
+
+  // Add verification check when displaying prescriptions
+  const verifyPrescriptionIntegrity = async (prescription: any) => {
+    const prescriptionHash = createPrescriptionHash({
+        doctorName: prescription.doctorName,
+        date: prescription.date,
+        medicines: prescription.medicines,
+        hospitalName: prescription.hospitalName
+    });
+    
+    // Verify against stored hash on blockchain
+    const isValid = await verifyPrescriptionUniqueness(prescriptionHash);
+    return isValid;
   };
 
   // Show loading state for initial auth check and data fetch
@@ -664,7 +756,7 @@ Ensure to:
               {(isUploading || isExtracting) ? "Processing..." : "Upload Prescription"} {/* Change button text based on state */}
             </button>
             <p className="mt-4 text-sm text-gray-600">
-               <span className="font-semibold text-teal-700">Powered by AI:</span> Medication details will be automatically extracted.
+              <span className="font-semibold text-teal-700">Powered by AI:</span> Medication details will be automatically extracted.
             </p>
           </div>
         </section>
@@ -701,7 +793,13 @@ Ensure to:
                 </div>
                  {/* Display Prescription Date */}
                  <div className="text-sm text-gray-600 mb-4">
-                     Date: {prescription.date ? new Date(prescription.date.seconds * 1000).toLocaleDateString('en-GB') : 'Date N/A'}
+                   {prescription.prescribedDate ? (
+                     <>Date: {format(parseISO(prescription.prescribedDate), 'dd/MM/yyyy')}</>
+                   ) : prescription.date ? (
+                     <>Date: {format(new Date(prescription.date.seconds * 1000), 'dd/MM/yyyy')}</>
+                   ) : (
+                     'Date: N/A'
+                   )}
                  </div>
 
 
@@ -729,31 +827,67 @@ Ensure to:
 
 
                 {/* Extracted Medicines List */}
-                {prescription.medicines && prescription.medicines.length > 0 && (
-                  <div className="flex-grow">
-                    <p className="text-base font-semibold text-gray-700 mb-2">Extracted Medicines:</p>
-                    <ul className="text-sm text-gray-700 space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2"> {/* Increased max height */}
-                      {prescription.medicines.map((med: ExtractedMedicine, idx: number) => ( // Use ExtractedMedicine type
-                        <li key={idx} className="border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
-                            <p><span className="font-medium">{med.medicineName}</span></p> {/* Use medicineName key */}
-                            {med.dosage && <p className="text-xs text-gray-600">Dosage: {med.dosage}</p>} {/* Use dosage key */}
-                            {(med.frequency || med.duration) && ( // Only show if frequency or duration exists
-                                <p className="text-xs text-gray-600">
-                                    {med.frequency && `Frequency: ${med.frequency}`} {/* Use frequency key */}
-                                    {med.frequency && med.duration && ` - `} {/* Add separator if both exist */}
-                                    {med.duration && `Duration: ${med.duration} days`} {/* Use duration key, add "days" for clarity */}
-                                </p>
-                            )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                 {/* Message if no medicines were extracted */}
-                 {prescription.medicines && prescription.medicines.length === 0 && (
-                     <p className="text-sm text-gray-500 italic">No medicine details were automatically extracted from this document.</p>
-                 )}
+                <div className="flex-grow">
+                  <p className="text-base font-semibold text-gray-700 mb-2">Extracted Medicines:</p>
+                  <ul className="text-sm text-gray-700 space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                    {prescription.medicines?.map((med: ExtractedMedicine, idx: number) => {
+                      // Calculate remaining days using the medicine's own prescribed date
+                      const prescribedDate = med.prescribedDate 
+                        ? parseISO(med.prescribedDate)
+                        : prescription.prescribedDate
+                          ? parseISO(prescription.prescribedDate)
+                          : prescription.date instanceof Timestamp
+                            ? prescription.date.toDate()
+                            : null;
 
+                      const duration = typeof med.duration === 'number'
+                        ? med.duration
+                        : typeof med.duration === 'string'
+                          ? parseInt(med.duration)
+                          : 0;
+
+                      const remainingDays = prescribedDate && duration
+                        ? calculateRemainingDays({
+                            medicines: [{ ...med, prescribedDate }],
+                            prescribedDate: prescribedDate.toISOString(),
+                            date: prescription.date
+                          })
+                        : 0;
+
+                      const isActive = remainingDays > 0;
+
+                      return (
+                        <li key={idx} className="border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p><span className="font-medium">{med.medicineName}</span></p>
+                              {med.dosage && <p className="text-xs text-gray-600">Dosage: {med.dosage}</p>}
+                              {(med.frequency || med.duration) && (
+                                <p className="text-xs text-gray-600">
+                                  {med.frequency && `Frequency: ${med.frequency}`}
+                                  {med.frequency && med.duration && ` - `}
+                                  {med.duration && `Duration: ${med.duration} days`}
+                                </p>
+                              )}
+                              {med.prescribedDate && (
+                                <p className="text-xs text-gray-600">
+                                  Prescribed: {new Date(med.prescribedDate).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                              {isActive ? `${remainingDays} days left` : 'Completed'}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                {prescription.medicines && prescription.medicines.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">No medicine details were automatically extracted from this document.</p>
+                )}
 
                 {/* Add to Medications Button (Placeholder) */}
                 <button
@@ -762,7 +896,7 @@ Ensure to:
                   className={`mt-6 px-4 py-2 border border-teal-600 text-teal-600 rounded-md font-semibold hover:bg-teal-50 transition-colors duration-200 flex items-center justify-center ${(!prescription.medicines || prescription.medicines.length === 0) && 'opacity-50 cursor-not-allowed'}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Add to Medications
                 </button>

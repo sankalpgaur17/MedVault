@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { format, compareAsc } from "date-fns";
+import { format, compareAsc, parseISO, isValid } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, Timestamp } from "firebase/firestore";
@@ -43,6 +43,79 @@ const calculateMedicineStatus = (prescriptionDate: Date, duration: number) => {
   };
 };
 
+// Add a helper function to safely get Date object from various date formats
+const getDateFromField = (dateField: any): Date | null => {
+  if (!dateField) return null;
+
+  try {
+    // If it's a Firestore Timestamp
+    if (dateField?.toDate && typeof dateField.toDate === 'function') {
+      return dateField.toDate();
+    }
+    // If it's a string (ISO format)
+    if (typeof dateField === 'string') {
+      const parsed = parseISO(dateField);
+      return isValid(parsed) ? parsed : null;
+    }
+    // If it's a JavaScript Date object
+    if (dateField instanceof Date && isValid(dateField)) {
+      return dateField;
+    }
+    // If it's a Unix timestamp in seconds (Firestore sometimes returns this)
+    if (typeof dateField?.seconds === 'number') {
+      return new Date(dateField.seconds * 1000);
+    }
+    return null;
+  } catch (error) {
+    console.error("Error parsing date:", error);
+    return null;
+  }
+};
+
+// Update the calculateStats function
+const calculateStats = (prescriptionsData: any[]) => {
+  let activeMeds = 0;
+
+  prescriptionsData.forEach(prescription => {
+    if (prescription.medicines && Array.isArray(prescription.medicines)) {
+      prescription.medicines.forEach((med: any) => {
+        // Get the prescribed date with fallbacks
+        const prescriptionDate = getDateFromField(med.prescribedDate) || 
+                               getDateFromField(prescription.prescribedDate) || 
+                               getDateFromField(prescription.date);
+        
+        if (!prescriptionDate) {
+          console.warn('No valid date found for prescription');
+          return;
+        }
+
+        const duration = typeof med.duration === 'number'
+          ? med.duration
+          : typeof med.duration === 'string'
+            ? parseInt(med.duration)
+            : 0;
+
+        if (!duration) return;
+
+        const endDate = new Date(prescriptionDate);
+        endDate.setDate(endDate.getDate() + duration);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (endDate > today) {
+          activeMeds++;
+        }
+      });
+    }
+  });
+
+  return {
+    prescriptionCount: prescriptionsData.length,
+    activeMedicationsCount: activeMeds
+  };
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -63,37 +136,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
     prescriptionCount: 0,
     activeMedicationsCount: 0
   });
-
-  // Add function to calculate statistics
-  const calculateStats = (prescriptionsData: any[]) => {
-    let activeMeds = 0;
-
-    prescriptionsData.forEach(prescription => {
-      if (prescription.medicines && Array.isArray(prescription.medicines)) {
-        prescription.medicines.forEach((med: any) => {
-          const prescriptionDate = med.extractedDate 
-            ? new Date(med.extractedDate)
-            : new Date(prescription.date.toDate());
-          
-          const duration = typeof med.duration === 'number'
-            ? med.duration
-            : typeof med.duration === 'string'
-              ? parseInt(med.duration)
-              : 0;
-
-          const { isActive } = calculateMedicineStatus(prescriptionDate, duration);
-          if (isActive) {
-            activeMeds++;
-          }
-        });
-      }
-    });
-
-    setStats({
-      prescriptionCount: prescriptionsData.length,
-      activeMedicationsCount: activeMeds
-    });
-  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -152,10 +194,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
           const prescriptionData = doc.data();
           if (prescriptionData.medicines && Array.isArray(prescriptionData.medicines)) {
             prescriptionData.medicines.forEach(med => {
-              const prescriptionDate = med.prescribedDate 
-                ? new Date(med.prescribedDate)
-                : new Date(prescriptionData.date.toDate());
-              
+              const prescriptionDate = getDateFromField(med.prescribedDate) || 
+                                     getDateFromField(prescriptionData.prescribedDate) || 
+                                     getDateFromField(prescriptionData.date);
+
+              if (!prescriptionDate) {
+                console.warn('No valid date found for prescription:', doc.id);
+                return;
+              }
+
               const duration = typeof med.duration === 'number' 
                 ? med.duration 
                 : typeof med.duration === 'string'
@@ -268,9 +315,27 @@ const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
         const prescriptionData = doc.data();
         if (prescriptionData.medicines && Array.isArray(prescriptionData.medicines)) {
           prescriptionData.medicines.forEach((med: any) => {
-            const prescriptionDate = med.extractedDate 
-              ? new Date(med.extractedDate)
-              : new Date(prescriptionData.date.toDate());
+            // Get the date in priority order: prescribedDate > date
+            let prescriptionDate: Date;
+            
+            if (med.prescribedDate) {
+              prescriptionDate = parseISO(med.prescribedDate);
+            } else if (prescriptionData.prescribedDate) {
+              prescriptionDate = parseISO(prescriptionData.prescribedDate);
+            } else if (prescriptionData.date instanceof Timestamp) {
+              prescriptionDate = prescriptionData.date.toDate();
+            } else if (typeof prescriptionData.date === 'string') {
+              prescriptionDate = parseISO(prescriptionData.date);
+            } else {
+              // If no valid date is found, use the current date
+              prescriptionDate = new Date();
+              console.warn('No valid date found for prescription:', doc.id);
+            }
+
+            if (!isValid(prescriptionDate)) {
+              console.warn('Invalid date for prescription:', doc.id);
+              return;
+            }
 
             const duration = typeof med.duration === 'number'
               ? med.duration

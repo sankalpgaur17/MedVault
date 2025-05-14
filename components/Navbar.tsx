@@ -74,33 +74,49 @@ const Navbar = ({ selectedOption, setSelectedOption }: NavbarProps) => {
   return (
     <div className="w-full">
       <nav className="flex items-center justify-between px-8 py-4 bg-teal-600 text-white shadow-lg">
-        {/* Logo Section */}
+        {/* Logo Section - Updated with fallback */}
         <div className="flex items-center space-x-4">
-          <div className="w-10 h-10">
-            <Image
-              src="/logo.svg"
-              alt="MedVault Logo"
-              width={40}
-              height={40}
-              className="w-full h-full"
-            />
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+            {/* Replace Image with SVG fallback */}
+            <svg 
+              className="w-8 h-8 text-teal-600" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" 
+              />
+            </svg>
           </div>
           <span className="text-2xl font-bold tracking-wide">MedVault</span>
         </div>
 
-        {/* Profile Section */}
+        {/* Profile Section - Updated with fallback */}
         <div className="relative">
           <div
             className="flex items-center space-x-3 cursor-pointer"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
           >
-            <Image
-              src={profileImage || "/profile.jpg"}
-              alt="Profile"
-              width={44}
-              height={44}
-              className="rounded-full border-2 border-white"
-            />
+            {/* Profile Image with Fallback */}
+            <div className="w-11 h-11 rounded-full border-2 border-white overflow-hidden bg-teal-700 flex items-center justify-center">
+              {profileImage ? (
+                <Image
+                  src={profileImage}
+                  alt="Profile"
+                  width={44}
+                  height={44}
+                  className="rounded-full"
+                />
+              ) : (
+                <span className="text-xl font-semibold text-white">
+                  {userName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
             <span className="text-lg font-medium">{userName}</span>
           </div>
 
