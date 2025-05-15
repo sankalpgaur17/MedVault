@@ -4,6 +4,9 @@ import { keccak256, toUtf8Bytes } from "ethers";
 import { serverWallet } from "../blockchain/serverWallet";
 import { parseISO, isBefore, isValid } from 'date-fns';
 import { createHash } from 'crypto';
+import { registerPrescriptionOnChain, verifyPrescriptionOnChain } from '../blockchain';
+import { checkFirebaseHash } from '../firebase/prescriptions';
+import { bchainContract } from '@/bchain/config'; // Import your existing contract configuration
 
 // Directly including the ABI in the code
 const abi = [
@@ -48,9 +51,10 @@ const getContract = async () => {
   return new ethers.Contract(contractAddress, abi, serverWallet);
 };
 
-// Create hash from image content
+// Create hash from image content instead of metadata
 export const createPrescriptionHash = async (imageBuffer: Buffer): Promise<string> => {
   try {
+    // Create hash from image content only
     const hash = createHash('sha256');
     hash.update(imageBuffer);
     return hash.digest('hex');
@@ -74,36 +78,39 @@ export const getPrescriptionDate = (prescriptionData: any): Date => {
   return parseISO(prescriptionData.date);
 };
 
-// Verify if prescription exists
+// Verify prescription uniqueness through API
 export const verifyPrescriptionUniqueness = async (hash: string): Promise<boolean> => {
   try {
-    const response = await fetch('/api/blockchain/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ hash })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to verify prescription');
-    }
-
-    const { exists } = await response.json();
-    return exists;
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const contract = bchainContract.connect(provider);
+    const bytes32Hash = ethers.utils.id(hash);
+    
+    // Use your existing contract's verify method
+    return await contract.verifyPrescription(bytes32Hash);
   } catch (error) {
     console.error('Error verifying prescription:', error);
     throw error;
   }
 };
 
-// Register prescription hash (simulated for now)
+// Register prescription through API
 export const registerPrescription = async (hash: string): Promise<void> => {
   try {
-    // For now, just log the hash registration
-    console.log('Registering prescription hash:', hash);
-    // In a real implementation, this would interact with the blockchain
-    return Promise.resolve();
+    if (typeof window.ethereum === "undefined") {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const contract = bchainContract.connect(signer);
+
+    // Convert hash to bytes32
+    const bytes32Hash = ethers.utils.id(hash);
+    
+    // Register prescription using your existing contract
+    const tx = await contract.registerPrescription(bytes32Hash);
+    await tx.wait();
+
   } catch (error) {
     console.error('Error registering prescription:', error);
     throw error;
