@@ -1,45 +1,40 @@
 import { NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { firestore } from 'firebase-admin';
 
 export async function POST(request: Request) {
   try {
-    // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'No token provided' }, { status: 401 });
     }
 
-    // Extract the token
     const token = authHeader.split('Bearer ')[1];
+    console.log('Received token:', token); // Debug log
 
     try {
-      // Verify the token using Firebase Admin
       const decodedToken = await adminAuth.verifyIdToken(token);
+      console.log('Decoded token:', decodedToken); // Debug log
+      
       const { hash } = await request.json();
+      console.log('Received hash:', hash); // Debug log
 
-      // Use admin Firestore instance to check prescriptionHashes
       const hashesRef = adminDb.collection('prescriptionHashes');
-      // Use firestore.where instead of direct where import
-      const q = hashesRef.where('hash', '==', hash);
-      const snapshot = await q.get();
+      const querySnapshot = await hashesRef
+        .where('hash', '==', hash)
+        .limit(1)
+        .get();
 
-      if (!snapshot.empty) {
-        return NextResponse.json({
-          exists: true,
-          message: "This prescription has already been registered."
-        });
-      }
+      return NextResponse.json({
+        exists: !querySnapshot.empty,
+        message: querySnapshot.empty ? null : "This prescription has already been registered."
+      });
 
-      return NextResponse.json({ exists: false });
-
-    } catch (error) {
-      console.error('Token verification error:', error);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    } catch (error: any) {
+      console.error('Token verification error details:', error); // Enhanced error logging
+      return NextResponse.json({ error: error.message }, { status: 401 });
     }
-
   } catch (error: any) {
-    console.error('Error verifying prescription:', error);
+    console.error('Server error details:', error); // Enhanced error logging
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
