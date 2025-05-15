@@ -1,26 +1,31 @@
-import { getApps, initializeApp, cert, App } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
-// Function to initialize Firebase Admin
-function initializeFirebaseAdmin() {
-  if (getApps().length === 0) {
-    const app = initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        // Replace newlines in private key
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
+// Get service account credentials from environment variables
+const serviceAccount = {
+  type: "service_account",
+  project_id: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  private_key_id: process.env.FIREBASE_ADMIN_PRIVATE_KEY_ID,
+  private_key: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+  client_id: process.env.FIREBASE_ADMIN_CLIENT_ID,
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url: process.env.FIREBASE_ADMIN_CERT_URL
+};
+
+// Initialize Firebase Admin
+if (!getApps().length) {
+  try {
+    initializeApp({
+      credential: cert(serviceAccount as any)
     });
-    return app;
+  } catch (error) {
+    console.error('Firebase Admin initialization error:', error);
   }
-  return getApps()[0];
 }
 
-// Initialize the admin app
-const adminApp = initializeFirebaseAdmin();
-const adminDb = getFirestore(adminApp);
-const adminAuth = getAuth(adminApp);
-
-export { adminApp, adminDb, adminAuth };
+export const adminDb = getFirestore();
+export const adminAuth = getAuth();
