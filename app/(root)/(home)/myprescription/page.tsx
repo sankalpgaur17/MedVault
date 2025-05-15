@@ -388,126 +388,143 @@ Ensure to:
 
 
   const handleSubmit = async () => {
-    if (!user?.uid) {
-      alert("Please log in to upload prescriptions.");
-      return;
-    }
+    if (!user?.uid || !file) return;
 
-    // Use the string states for validation
-    if (!doctorName.trim() || !prescriptionDateString.trim() || !file || !userUid) {
-      let missingFields = [];
-      if (!doctorName.trim()) missingFields.push("Doctor's Name");
-      if (!prescriptionDateString.trim()) missingFields.push("Date");
-      if (!file) missingFields.push("File");
-      if (!userUid) missingFields.push("User not logged in");
-      alert(`⚠️ Please fill all required fields: ${missingFields.join(", ")}.`);
-      return; // Stop submission if validation fails
-    }
-
-    // Remove MetaMask check since we're using server wallet
     setIsUploading(true);
     setIsExtracting(true);
 
     try {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            try {
-                const base64String = (reader.result as string).split(",")[1];
-                // 2. Extract medicine data
-                const { medicines, hospitalName: extractedHospitalName } = await extractMedicinesFromImage(base64String);
+      // Convert file to buffer for hashing
+      const buffer = await file.arrayBuffer();
+      const imageBuffer = Buffer.from(buffer);
+      
+      // Create hash from image content
+      const prescriptionHash = await createPrescriptionHash(imageBuffer);
+      const idToken = await user.getIdToken();
 
-                // 3. Create prescription data object
-                const prescriptionData = {
-                    doctorName: doctorName.trim(),
-                    date: prescriptionDateString,
-                    medicines: medicines,
-                    hospitalName: extractedHospitalName || hospitalName.trim()
-                };
+      // Verify if prescription already exists (regardless of metadata)
+      const response = await fetch('/api/blockchain/verify', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ 
+          hash: prescriptionHash
+        })
+      });
 
-                // Pass userId for ownership verification
-                try {
-                    const prescriptionHash = createPrescriptionHash(prescriptionData);
-                    const idToken = await user.getIdToken();
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to verify prescription');
+      }
 
-                    const response = await fetch('/api/blockchain/verify', {
-                      method: 'POST',
-                      headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${idToken}`
-                      },
-                      body: JSON.stringify({ 
-                        hash: prescriptionHash
-                      })
-                    });
+      const { exists, message } = await response.json();
+      if (exists) {
+        alert("This prescription has already been registered in the system by another user.");
+        return;
+      }
 
-                    if (!response.ok) {
-                      const error = await response.json();
-                      throw new Error(error.error || 'Failed to verify prescription');
-                    }
+      // Continue with upload if prescription is unique
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+          try {
+              const base64String = (reader.result as string).split(",")[1];
+              // 2. Extract medicine data
+              const { medicines, hospitalName: extractedHospitalName } = await extractMedicinesFromImage(base64String);
 
-                    const { exists, message } = await response.json();
-                    if (exists) {
-                      alert(message || "This prescription has already been registered in the system.");
-                      return;
-                    }
+              // 3. Create prescription data object
+              const prescriptionData = {
+                  doctorName: doctorName.trim(),
+                  date: prescriptionDateString,
+                  medicines: medicines,
+                  hospitalName: extractedHospitalName || hospitalName.trim()
+              };
 
-                    // Continue with upload if prescription is unique
-                    const storageRef = ref(storage, `prescriptions/${userUid}/${Date.now()}-${file.name}`);
-                    await uploadBytes(storageRef, file);
-                    const fileURL = await getDownloadURL(storageRef);
+              // Pass userId for ownership verification
+              try {
+                  const idToken = await user.getIdToken();
 
-                    // Register using server wallet
-                    await registerPrescription(prescriptionHash);
+                  const response = await fetch('/api/blockchain/verify', {
+                    method: 'POST',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({ 
+                      hash: prescriptionHash
+                    })
+                  });
 
-                    // Save hash to prescriptionHashes collection first
-                    await addDoc(collection(db, "prescriptionHashes"), {
-                      hash: prescriptionHash,
-                      createdAt: Timestamp.now(),
-                      userId: userUid // Optional: store who first uploaded it
-                    });
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to verify prescription');
+                  }
 
-                    // Then save prescription details
-                    await addDoc(collection(db, "prescriptions"), {
-                      uid: userUid,
-                      doctorName: doctorName.trim(),
-                      date: Timestamp.fromDate(new Date(prescriptionDateString)), // Form date as backup
-                      prescribedDate: medicines[0]?.prescribedDate || null, // Store extracted date
-                      hospitalName: extractedHospitalName || hospitalName.trim(),
-                      fileURL: fileURL,
-                      notes: notes.trim(),
-                      medicines: medicines,
-                      prescriptionHash: prescriptionHash,
-                      createdAt: Timestamp.now(),
-                      blockchainVerified: true
-                    });
-
-                    resetForm();
-                    alert("✅ Prescription uploaded and verified successfully!");
-                } catch (error: any) {
-                    alert(error.message);
+                  const { exists, message } = await response.json();
+                  if (exists) {
+                    alert(message || "This prescription has already been registered in the system.");
                     return;
-                }
-            } catch (error) {
-                console.error("Error processing prescription:", error);
-                alert("❌ Error processing prescription. Please try again.");
-            } finally {
-                setIsUploading(false); // Stop uploading indicator
-                setIsExtracting(false); // Stop extraction indicator
-            }
-        };
-        reader.onerror = (error) => {
-            console.error("Error reading file:", error);
-            alert("❌ Failed to read the uploaded file.");
-            setIsUploading(false);
-            setIsExtracting(false);
-        };
-        reader.readAsDataURL(file); // Start reading the file
+                  }
+
+                  // Continue with upload if prescription is unique
+                  const storageRef = ref(storage, `prescriptions/${userUid}/${Date.now()}-${file.name}`);
+                  await uploadBytes(storageRef, file);
+                  const fileURL = await getDownloadURL(storageRef);
+
+                  // Register using server wallet
+                  await registerPrescription(prescriptionHash);
+
+                  // Save hash to prescriptionHashes collection first
+                  await addDoc(collection(db, "prescriptionHashes"), {
+                    hash: prescriptionHash,
+                    createdAt: Timestamp.now(),
+                    userId: userUid // Optional: store who first uploaded it
+                  });
+
+                  // Then save prescription details
+                  await addDoc(collection(db, "prescriptions"), {
+                    uid: userUid,
+                    doctorName: doctorName.trim(),
+                    date: Timestamp.fromDate(new Date(prescriptionDateString)), // Form date as backup
+                    prescribedDate: medicines[0]?.prescribedDate || null, // Store extracted date
+                    hospitalName: extractedHospitalName || hospitalName.trim(),
+                    fileURL: fileURL,
+                    notes: notes.trim(),
+                    medicines: medicines,
+                    prescriptionHash: prescriptionHash,
+                    createdAt: Timestamp.now(),
+                    blockchainVerified: true
+                  });
+
+                  resetForm();
+                  alert("✅ Prescription uploaded and verified successfully!");
+              } catch (error: any) {
+                  alert(error.message);
+                  return;
+              }
+          } catch (error) {
+              console.error("Error processing prescription:", error);
+              alert("❌ Error processing prescription. Please try again.");
+          } finally {
+              setIsUploading(false); // Stop uploading indicator
+              setIsExtracting(false); // Stop extraction indicator
+          }
+      };
+      reader.onerror = (error) => {
+          console.error("Error reading file:", error);
+          alert("❌ Failed to read the uploaded file.");
+          setIsUploading(false);
+          setIsExtracting(false);
+      };
+      reader.readAsDataURL(file); // Start reading the file
 
     } catch (error) {
-        console.error("Upload error:", error);
-        alert("❌ Failed to upload prescription file.");
-        setIsUploading(false);
-        setIsExtracting(false);
+      console.error("Upload error:", error);
+      alert("Failed to process prescription.");
+    } finally {
+      setIsUploading(false);
+      setIsExtracting(false);
     }
   };
 
@@ -579,12 +596,11 @@ Ensure to:
 
   // Add verification check when displaying prescriptions
   const verifyPrescriptionIntegrity = async (prescription: any) => {
-    const prescriptionHash = createPrescriptionHash({
-        doctorName: prescription.doctorName,
-        date: prescription.date,
-        medicines: prescription.medicines,
-        hospitalName: prescription.hospitalName
-    });
+    // Convert prescription data to a Buffer for hashing
+    const prescriptionData = JSON.stringify(prescription);
+    const buffer = Buffer.from(prescriptionData);
+    
+    const prescriptionHash = await createPrescriptionHash(buffer);
     
     // Verify against stored hash on blockchain
     const isValid = await verifyPrescriptionUniqueness(prescriptionHash);
