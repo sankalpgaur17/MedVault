@@ -53,11 +53,20 @@ const SignUpPage = () => {
         createdAt: serverTimestamp(),
       });
 
-      router.push("/profile"); // New user gets directed to profile page
+      router.push("/dashboard");
     } catch (err: any) {
       if (err.code !== "auth/cancelled-popup-request") {
-        console.error("Google sign-in error:", err);
-        setError(err.message);
+        switch (err.code) {
+          case 'auth/account-exists-with-different-credential':
+            setError("An account already exists with the same email but different sign-in credentials.");
+            break;
+          case 'auth/popup-blocked':
+            setError("Sign-in popup was blocked. Please allow popups for this website.");
+            break;
+          default:
+            setError("Failed to sign in with Google. Please try again.");
+            console.error("Google sign-in error:", err);
+        }
       }
     }
   };
@@ -116,49 +125,51 @@ const SignUpPage = () => {
 
     setLoading(true);
     try {
-      // First create the user account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // First check if email already exists
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-      // Update the user's display name
-      await updateProfile(user, {
-        displayName: name
-      });
+        // Update the user's display name
+        await updateProfile(user, {
+          displayName: name
+        });
 
-      // Batch write both documents
-      const batch = writeBatch(db);
-
-      // Create initial user document
-      const userRef = doc(db, "users", user.uid);
-      batch.set(userRef, {
-        name,
-        email,
-        createdAt: serverTimestamp(),
-      });
-
-      // Create initial profile document
-      const profileRef = doc(db, "profiles", user.uid);
-      batch.set(profileRef, {
-        name,
-        email,
-        createdAt: serverTimestamp(),
-      });
-
-      // Commit the batch
-      await batch.commit();
-
-      router.push("/profile");
-    } catch (err: any) {
-      console.error("Sign-up error:", err);
-      if (err.code === 'permission-denied') {
-        setError("Permission error. Please try again or contact support.");
-      } else {
-        setError(err.message);
+        router.push("/dashboard");
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-in-use') {
+          setError("An account already exists with this email. Please sign in instead.");
+        } else {
+          switch (err.code) {
+            case 'auth/invalid-email':
+              setError("Please enter a valid email address.");
+              break;
+            case 'auth/weak-password':
+              setError("Password should be at least 6 characters long.");
+              break;
+            case 'auth/operation-not-allowed':
+              setError("Email/password sign up is not enabled. Please try another method.");
+              break;
+            default:
+              setError("Failed to create account. Please try again.");
+              console.error("Signup error:", err);
+          }
+        }
       }
     } finally {
       setLoading(false);
     }
   };
+
+  // Update the error display component
+  const ErrorMessage = ({ message }: { message: string }) => (
+    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center">
+      <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-row">
@@ -240,11 +251,7 @@ const SignUpPage = () => {
             <p className="mt-2 text-gray-600">Join us to manage your healthcare journey.</p>
           </div>
 
-          {error && (
-            <div className="bg-red-50 text-red-800 p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+          {error && <ErrorMessage message={error} />}
 
           <div className="space-y-4">
             {/* Form fields for sign up */}

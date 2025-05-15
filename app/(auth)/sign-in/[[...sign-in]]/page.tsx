@@ -20,6 +20,7 @@ const SignInPage = () => {
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
@@ -42,12 +43,38 @@ const SignInPage = () => {
   }, []);
 
   const handleSignIn = async () => {
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard"); // Changed from /profile to /dashboard
-    } catch (error) {
-      console.error("Email Sign-In Error:", error);
-      setError("Invalid email or password");
+      router.push("/dashboard");
+    } catch (err: any) {
+      switch (err.code) {
+        case 'auth/user-not-found':
+          setError("No account found with this email. Please sign up first.");
+          break;
+        case 'auth/wrong-password':
+          setError("Incorrect password. Please try again.");
+          break;
+        case 'auth/invalid-email':
+          setError("Please enter a valid email address.");
+          break;
+        case 'auth/user-disabled':
+          setError("This account has been disabled. Please contact support.");
+          break;
+        case 'auth/too-many-requests':
+          setError("Too many failed attempts. Please try again later.");
+          break;
+        default:
+          setError("Failed to sign in. Please check your credentials.");
+          console.error("Sign-in error:", err);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,6 +112,12 @@ const SignInPage = () => {
       setError("Invalid OTP");
     }
   };
+
+  const ErrorMessage = ({ message }: { message: string }) => (
+    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-row">
@@ -150,11 +183,7 @@ const SignInPage = () => {
             <p className="mt-2 text-gray-600">Welcome back! Please login to your account.</p>
           </div>
 
-          {error && (
-            <div className="bg-red-50 text-red-800 p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+          {error && <ErrorMessage message={error} />}
 
           <div className="space-y-4">
             <div>

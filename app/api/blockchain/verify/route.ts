@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { adminDb, adminAuth } from '@/lib/firebase-admin'; // Updated import path
+import { getProvider, getContract } from '@/bchain/config';
+import { keccak256, toUtf8Bytes } from 'ethers';
+import { QuerySnapshot, DocumentData } from 'firebase-admin/firestore'; // Add these imports
 
 export async function POST(request: Request) {
   try {
@@ -9,32 +12,46 @@ export async function POST(request: Request) {
     }
 
     const token = authHeader.split('Bearer ')[1];
-    console.log('Received token:', token); // Debug log
 
     try {
       const decodedToken = await adminAuth.verifyIdToken(token);
-      console.log('Decoded token:', decodedToken); // Debug log
-      
       const { hash } = await request.json();
-      console.log('Received hash:', hash); // Debug log
 
-      const hashesRef = adminDb.collection('prescriptionHashes');
-      const querySnapshot = await hashesRef
-        .where('hash', '==', hash)
-        .limit(1)
-        .get();
+      // Create bytes32 hash using ethers v6 method
+      const bytes32Hash = keccak256(toUtf8Bytes(hash));
+
+      // Check both Firebase and Blockchain
+      const [firebaseExists, blockchainExists] = await Promise.all([
+        // Check Firebase
+        adminDb.collection('prescriptionHashes')
+          .where('hash', '==', hash)
+          .get()
+          .then((snapshot: QuerySnapshot<DocumentData>) => !snapshot.empty),
+        
+        // Check Blockchain with updated method
+        getContract(getProvider())
+          .checkPrescription(bytes32Hash)
+      ]);
 
       return NextResponse.json({
-        exists: !querySnapshot.empty,
-        message: querySnapshot.empty ? null : "This prescription has already been registered."
+        exists: firebaseExists || blockchainExists,
+        message: firebaseExists || blockchainExists 
+          ? "This prescription has already been registered." 
+          : null
       });
 
     } catch (error: any) {
-      console.error('Token verification error details:', error); // Enhanced error logging
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      console.error('Verification error:', error);
+      return NextResponse.json(
+        { error: 'Verification failed' }, 
+        { status: 401 }
+      );
     }
   } catch (error: any) {
-    console.error('Server error details:', error); // Enhanced error logging
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Server error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' }, 
+      { status: 500 }
+    );
   }
 }

@@ -373,6 +373,195 @@ const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
     }
   };
 
+  // Update the calculateStats function
+  const calculateStats = (prescriptions: any[]) => {
+    let activeMeds = 0;
+    let totalPrescriptions = prescriptions.length;
+
+    prescriptions.forEach(prescription => {
+      if (prescription.medicines && Array.isArray(prescription.medicines)) {
+        prescription.medicines.forEach((med: any) => {
+          const prescriptionDate = med.prescribedDate 
+            ? parseISO(med.prescribedDate)
+            : prescription.prescribedDate
+              ? parseISO(prescription.prescribedDate)
+              : prescription.date instanceof Timestamp
+                ? prescription.date.toDate()
+                : null;
+
+          if (!prescriptionDate) return;
+
+          const duration = typeof med.duration === 'number'
+            ? med.duration
+            : typeof med.duration === 'string'
+              ? parseInt(med.duration)
+              : 0;
+
+          if (!duration) return;
+
+          const endDate = new Date(prescriptionDate);
+          endDate.setDate(endDate.getDate() + duration);
+          
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          if (endDate > today) {
+            activeMeds++;
+          }
+        });
+      }
+    });
+
+    return {
+      prescriptionCount: totalPrescriptions,
+      activeMedicationsCount: activeMeds
+    };
+  };
+
+  // Update appointments fetch in useEffect
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Fetch user profile
+        const profileRef = doc(db, "profiles", user.uid);
+        const profileSnap = await getDoc(profileRef);
+        if (profileSnap.exists()) {
+          setUserData(profileSnap.data());
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Fetch appointments with correct field name matching
+        const appointmentsQuery = query(
+          collection(db, "appointments"),
+          where("userId", "==", user.uid),
+          where("date", ">=", Timestamp.fromDate(new Date())), // Only future appointments
+          orderBy("date", "asc") // Sort by date ascending
+        );
+
+        const appointmentsSnapshot = await getDocs(appointmentsQuery);
+        const appointments = appointmentsSnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              date: data.date,
+              ...data
+            };
+          })
+          .filter((appt): appt is { id: string; date: Timestamp; [key: string]: any } => appt.date instanceof Timestamp);
+
+        setRecentData(prev => ({
+          ...prev,
+          appointments: appointments // Store all appointments, not just 3
+        }));
+
+        // Update medications fetch and filtering
+        const medicationsQuery = query(
+          collection(db, "prescriptions"),
+          where("uid", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+        const medicationsSnapshot = await getDocs(medicationsQuery);
+        const activeMedications: {
+          medicineName?: string;
+          prescriptionId: string;
+          doctorName?: string;
+          hospitalName?: string;
+          remainingDays: number;
+          date: Date;
+          frequency?: string;
+          [key: string]: any;
+        }[] = [];
+
+        medicationsSnapshot.docs.forEach(doc => {
+          const prescriptionData = doc.data();
+          if (prescriptionData.medicines && Array.isArray(prescriptionData.medicines)) {
+            prescriptionData.medicines.forEach(med => {
+              const prescriptionDate = getDateFromField(med.prescribedDate) || 
+                                     getDateFromField(prescriptionData.prescribedDate) || 
+                                     getDateFromField(prescriptionData.date);
+
+              if (!prescriptionDate) {
+                console.warn('No valid date found for prescription:', doc.id);
+                return;
+              }
+
+              const duration = typeof med.duration === 'number' 
+                ? med.duration 
+                : typeof med.duration === 'string'
+                  ? parseInt(med.duration)
+                  : 0;
+
+              const remainingDays = calculateRemainingDays(prescriptionDate, duration);
+              
+              if (remainingDays > 0) {
+                activeMedications.push({
+                  ...med,
+                  prescriptionId: doc.id,
+                  doctorName: prescriptionData.doctorName,
+                  hospitalName: prescriptionData.hospitalName,
+                  remainingDays,
+                  date: prescriptionDate
+                });
+              }
+            });
+          }
+        });
+
+        // Sort medications by remaining days
+        activeMedications.sort((a, b) => a.remainingDays - b.remainingDays);
+
+        setRecentData(prev => ({
+          ...prev,
+          medications: activeMedications.slice(0, 3).map(med => ({
+            ...med,
+            id: med.prescriptionId // Map prescriptionId to id
+          }))
+        }));
+
+        // Fetch lab tests
+        const labTestsQuery = query(
+          collection(db, "labTests"),
+          where("uid", "==", user.uid),
+          limit(3)
+        );
+        const labTestsSnapshot = await getDocs(labTestsQuery);
+        const labTests = labTestsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        setRecentData(prev => ({
+          ...prev,
+          appointments,
+          labTests
+        }));
+
+        // Calculate stats when prescriptions are fetched
+        const stats = calculateStats(medicationsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })));
+        
+        setStats(stats);
+
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -457,12 +646,12 @@ const Dashboard: React.FC<DashboardProps> = ({ setSelectedOption }) => {
               View All
             </button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
             {recentData.appointments.length > 0 ? (
               recentData.appointments.map(appointment => (
                 <div key={appointment.id} className="p-4 bg-gray-50 rounded-lg">
                   <p className="font-medium text-gray-800">{appointment.doctor}</p>
-                  <p className="text-sm text-gray-600">{format(appointment.date.toDate(), "MMM d, yyyy")}</p>
+                  <p className="text-sm text-gray-600">{format(appointment.date.toDate(), "MMMM d, yyyy")}</p>
                   <p className="text-sm text-gray-600">{appointment.time}</p>
                 </div>
               ))
